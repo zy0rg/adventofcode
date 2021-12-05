@@ -79,6 +79,6 @@ export default (input) => {
 
 	return [
 		parseInt(common.join(''), 2) * parseInt(inverse.join(''), 2),
-		parseInt(oxygen[0],2) * parseInt(co2[0], 2)
+		parseInt(oxygen[0], 2) * parseInt(co2[0], 2)
 	]
 }
