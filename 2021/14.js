@@ -2,9 +2,9 @@ export default (input) => {
 	const [polymerStr, mutationsStr] = input.split('\n\n')
 	const mutationsArray = mutationsStr.split('\n')
 
-	const mutationsCount = mutationsArray.length
+	const length = mutationsArray.length
 	const indices = new Map()
-	const abc = new Array(mutationsCount)
+	const abc = new Array(length)
 
 	mutationsArray.forEach((str, i) => {
 		const a = str.charCodeAt(0)
@@ -15,33 +15,36 @@ export default (input) => {
 		abc[i] = [a, b, c]
 	})
 
-	const length = polymerStr.length
-	const counts = new Uint16Array(100)
-	const targets = new Uint8Array(mutationsCount)
-	const productA = new Uint8Array(mutationsCount)
-	const productB = new Uint8Array(mutationsCount)
+	const polymerLength = polymerStr.length
+	const targets = new Uint8Array(length)
+	const productA = new Uint8Array(length)
+	const productB = new Uint8Array(length)
+	const productC = new Uint8Array(length)
+	const counts = new Float64Array(100)
+	let pairCounts = new Float64Array(length)
+	let nextPairCounts = new Float64Array(length)
 
 	abc.forEach(([a, b, c], i) => {
 		targets[i] = b
 		productA[i] = indices.get(a * 100 + c)
 		productB[i] = indices.get(c * 100 + b)
+		productC[i] = c
 	})
-
-	const pairCounts = new Uint8Array(mutationsCount)
 
 	let previous = polymerStr.charCodeAt(0)
 
 	counts[previous]++
 
-	for (let i = 1; i < length; i++) {
+	for (let i = 1; i < polymerLength; i++) {
 		const current = polymerStr.charCodeAt(i)
 
+		counts[current]++
 		pairCounts[indices.get(previous * 100 + current)]++
 
 		previous = current
 	}
 
-	const minMax = () => {
+	const getResult = () => {
 		let min = Infinity
 		let max = 0
 
@@ -60,22 +63,29 @@ export default (input) => {
 	}
 
 	let step = 0
+	let result1 = 0
+	let result2 = 0
 
-	const increments = pairCounts.slice()
-
-	for (; step < 10; step++) {
-		for (let i = 0; i < mutationsCount; i++) {
+	while (true) {
+		for (let i = 0; i < length; i++) {
 			const count = pairCounts[i]
-			increments[productA[i]] += count
-			increments[productB[i]] += count
+			nextPairCounts[productA[i]] += count
+			nextPairCounts[productB[i]] += count
+			counts[productC[i]] += count
 		}
 
-		pairCounts.set(increments)
+		[pairCounts, nextPairCounts] = [nextPairCounts, pairCounts]
+		nextPairCounts.fill(0)
+
+		step++
+
+		if (step === 10) {
+			result1 = getResult()
+		} else if (step === 40) {
+			result2 = getResult()
+			break
+		}
 	}
-
-	const result1 = minMax()
-
-	const result2 = minMax()
 
 	return [result1, result2]
 }

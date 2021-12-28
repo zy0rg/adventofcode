@@ -31,19 +31,21 @@ export default (input) => {
 
 	const xLength = xFolds.length
 	const yLength = yFolds.length
-
-	const fold = (folds, length, value) => {
-		for (let i = 0; i < length; i++) {
-			const edge = folds[i]
-			if (value > edge) {
-				value = edge * 2 - value
-			}
-		}
-		return value
-	}
-
 	const width = xFolds[xLength - 1]
 	const height = yFolds[yLength - 1]
+
+	const xDouble = width * 2
+	const yDouble = height * 2
+	const xDivisor = xDouble + 2
+	const yDivisor = yDouble + 2
+
+	const fold = (value, size, double, divisor) => {
+		const divided = value % divisor
+		return divided > size
+			? double - divided
+			: divided
+	}
+
 	const first = new Set()
 	const dots = new Array(height)
 
@@ -56,7 +58,7 @@ export default (input) => {
 		const x = parseInt(xStr)
 		const y = parseInt(yStr)
 		first.add(firstX(x) + firstY(y) * 10000)
-		dots[fold(yFolds, yLength, y)][fold(xFolds, xLength, x)] = '\u2588'
+		dots[fold(y, height, yDouble, yDivisor)][fold(x, width, xDouble, xDivisor)] = '\u2588'
 	})
 
 	return [

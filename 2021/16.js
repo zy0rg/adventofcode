@@ -18,19 +18,14 @@ const hex = {
 }
 
 export default (input) => {
-	const length = input.length
 	let i = 0
 	let bits = 0
 	let bitsLength = 0
 
-	let hasMoreBits = true
+	let result1 = 0
 
 	const read = (count) => {
 		while (bitsLength < count) {
-			if (i === length) {
-				hasMoreBits = false
-				return 0
-			}
 			bits = (bits << 4) + hex[input[i++]]
 			bitsLength += 4
 		}
@@ -41,9 +36,7 @@ export default (input) => {
 		return value
 	}
 
-	let result1 = 0
-
-	do {
+	const execute = () => {
 		const version = read(3)
 		const type = read(3)
 		result1 += version
@@ -51,18 +44,50 @@ export default (input) => {
 			let number = 0
 			let group
 			while ((group = read(5)) & 16) {
-				number = (number << 4) + (group - 16)
+				number = number * 16 + (group - 16)
 			}
-			number = (number << 4) + group
+			return number * 16 + group
 		} else {
 			const packetType = read(1)
+			const packets = []
 			if (packetType === 0) {
 				const packetLength = read(15)
+				const limit = i * 4 + 4 - bitsLength + packetLength
+				do {
+					packets.push(execute())
+				} while (i * 4 + 4 - bitsLength < limit)
 			} else {
 				const packetCount = read(11)
+				for (let i = 0; i < packetCount; i++) {
+					packets.push(execute())
+				}
+			}
+			switch (type) {
+				case 0:
+					return packets.reduce((a, b) => a + b)
+				case 1:
+					return packets.reduce((a, b) => a * b)
+				case 2:
+					return Math.min(...packets)
+				case 3:
+					return Math.max(...packets)
+				case 5:
+					return packets[0] > packets[1]
+						? 1
+						: 0
+				case 6:
+					return packets[1] > packets[0]
+						? 1
+						: 0
+				case 7:
+					return packets[0] === packets[1]
+						? 1
+						: 0
 			}
 		}
-	} while (hasMoreBits)
+	}
 
-	return [result1]
+	const result2 = execute()
+
+	return [result1, result2]
 }

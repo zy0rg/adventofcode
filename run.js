@@ -4,6 +4,7 @@ import {createWriteStream, constants} from 'fs'
 import https from 'https'
 
 const session = '' // insert your session cookie here
+const tests = 20
 
 const download = (url, options, dest) => new Promise((resolve, reject) => {
 	const file = createWriteStream(dest)
@@ -29,7 +30,7 @@ const getInput = async (year, day) => {
 			}
 		}, filename)
 	}
-	return await readFile(filename, {encoding: 'utf-8'})
+	return (await readFile(filename, {encoding: 'utf-8'})).trim()
 }
 
 const ensureDir = async (path) => {
@@ -40,11 +41,13 @@ const ensureDir = async (path) => {
 	}
 }
 
+const formatTiming = (timing) => timing.toFixed(5).padStart(10)
+
 const execute = async (year) => {
 	const dir = `./${year}`
 	const inputDir = `${dir}/input`
 
-	const [files, ] = await Promise.all([
+	const [files] = await Promise.all([
 		readdir(dir),
 		ensureDir(inputDir)
 	])
@@ -54,17 +57,29 @@ const execute = async (year) => {
 		.map((fileName) => +fileName.substring(0, fileName.length - 3))
 		.sort((a, b) => a - b)
 
-
 	const tasks = await Promise.all(days.map((day) => Promise.all([
 		getInput(year, day),
 		getSolution(year, day)
 	])))
 
 	tasks.forEach(([input, task], i) => {
-		const start = performance.now()
-		const result = task(input.trim())
-		const end = performance.now()
-		console.log(`${(days[i]).toString().padStart(2)}: ${(end - start).toFixed(5).padStart(10)} - ${result.join(', ')}`)
+		let result
+		const timings = new Float64Array(tests)
+		for (let i = 0; i < tests; i++) {
+			const start = performance.now()
+			result = task(input)
+			const end = performance.now()
+			timings[i] = end - start
+		}
+		console.log(`${
+			(days[i]).toString().padStart(2)
+		}. ${
+			tests === 1
+				? formatTiming(timings[0])
+				: `${formatTiming(Math.min(...timings))} - ${formatTiming(Math.max(...timings))}`
+		} : ${
+			result.join(', ')
+		}`)
 	})
 }
 

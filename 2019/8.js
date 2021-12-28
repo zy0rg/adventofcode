@@ -39,8 +39,8 @@ export default (input) => {
 
 	let result2 = ['']
 
-	for (let i = 0; i < height; i++) {
-		result2.push(image.subarray(i * width, (i + 1) * width).join(''))
+	for (let i = 0; i < size; i += width) {
+		result2.push(Array.from(image.subarray(i, i + width), (value) => value === 1 ? '\u2588' : ' ').join(''))
 	}
 
 	return [result1, result2.join('\n')]

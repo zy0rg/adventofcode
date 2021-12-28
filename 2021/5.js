@@ -62,7 +62,7 @@ export default (input) => {
 			diagonal = true
 		}
 
-		for (let i = 0; i <= length; i++) {
+		for (let i = 0; i <= length; i++, id += delta) {
 			if (diagonal) {
 				const value = overlaps2[id]
 				if (value === 0) {
@@ -91,7 +91,6 @@ export default (input) => {
 					}
 				}
 			}
-			id += delta
 		}
 	})
 

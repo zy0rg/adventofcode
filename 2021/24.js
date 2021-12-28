@@ -5,150 +5,223 @@ const indices = {
 	z: 3
 }
 
-export default (input) => {
-	const parseOperation = (op, aIndex, b) => {
-		const num = parseInt(b)
-		if (Number.isNaN(num)) {
-			const bIndex = indices[b]
-			switch (op) {
-				case 'add':
-					return (variables) => {
-						variables[aIndex] += variables[bIndex]
-						return true
-					}
-				case 'mul':
-					return (variables) => {
-						variables[aIndex] *= variables[bIndex]
-						return true
-					}
-				case 'div':
-					return (variables) => {
-						const b = variables[bIndex]
+const filter = (operations) => {
+	const definiteVariables = [0, 0, 0, 0]
+	let result = operations.map((operation) => {
+		const [op, aIndex, b, isReference] = operation
+		const value = isReference
+			? definiteVariables[b]
+			: b
+		switch (op) {
+			case 'set':
+				definiteVariables[aIndex] = value
+				break
+			case 'inp':
+				definiteVariables[aIndex] = null
+				break
+			case 'add':
+				if (value === 0) {
+					return null
+				} else if (value == null) {
+					definiteVariables[aIndex] = null
+				} else if (definiteVariables[aIndex] != null) {
+					definiteVariables[aIndex] += value
+				}
+				break
+			case 'mul':
+				if (value === 1 || definiteVariables[aIndex] === 0) {
+					return null
+				} else if (value === 0) {
+					definiteVariables[aIndex] = 0
+				} else if (value == null) {
+					definiteVariables[aIndex] = null
+				} else if (definiteVariables[aIndex] != null) {
+					definiteVariables[aIndex] *= value
+				}
+				break
+			case 'div':
+				if (value === 1 || definiteVariables[aIndex] === 0) {
+					return null
+				} else if (value == null) {
+					definiteVariables[aIndex] = null
+				} else if (definiteVariables[aIndex] != null) {
+					Math.floor(definiteVariables[aIndex] / value)
+				}
+				break
+			case 'mod':
+				if (definiteVariables[aIndex] === 0) {
+					return null
+				} else if (value == null) {
+					definiteVariables[aIndex] = null
+				} else if (definiteVariables[aIndex] != null) {
+					definiteVariables[aIndex] %= value
+				}
+				break
+			case 'eql':
+				if (value == null) {
+					definiteVariables[aIndex] = null
+				} else if (definiteVariables[aIndex] != null) {
+					definiteVariables[aIndex] = definiteVariables[aIndex] === value ? 1 : 0
+				}
+				break
+		}
+		if (definiteVariables[aIndex] != null) {
+			return ['set', aIndex, definiteVariables[aIndex], false]
+		} else if (isReference && value != null) {
+			return [op, aIndex, value, false]
+		}
+		return operation
+	})
+
+	result = result.filter((operation) => operation != null)
+	const unusedVariables = [true, true, true, false]
+
+	for (let i = result.length - 1; i > 0; i--) {
+		const [op, aIndex, b, isReference] = result[i]
+		if (op === 'inp') {
+			unusedVariables[aIndex] = true
+		} else if (unusedVariables[aIndex]) {
+			result[i] = null
+		} else if (op === 'set') {
+			unusedVariables[aIndex] = true
+		} else if (isReference) {
+			unusedVariables[b] = false
+		}
+	}
+
+	result = result.filter((operation) => operation != null)
+
+	return result
+}
+
+const prepareOperation = ([op, aIndex, rawB, isReference]) => {
+	const a = `variables[${aIndex}]`
+	const b = isReference ? `variables[${rawB}]` : rawB
+	switch (op) {
+		case 'set':
+			return `${a} = ${b}`
+		case 'add':
+			return `${a} += ${b}`
+		case 'mul':
+			return `${a} *= ${b}`
+		case 'div':
+			return isReference
+				? `
+						const b = ${b}
 						if (b === 0) {
 							return false
 						}
-						variables[aIndex] = Math.floor(variables[aIndex] / b)
-						return true
-					}
-				case 'mod':
-					return (variables) => {
-						const a = variables[aIndex]
-						const b = variables[bIndex]
+						${a} = Math.floor(${a} / b)
+					`
+				: `${a} = Math.floor(${a} / ${b})`
+		case 'mod':
+			return isReference
+				? `
+						const a = ${a}
+						const b = ${b}
 						if (a < 0 || b <= 0) {
 							return false
 						}
-						variables[aIndex] = a % b
-						return true
-					}
-				case 'eql':
-					return (variables) => {
-						variables[aIndex] = variables[aIndex] === variables[bIndex]
-							? 1
-							: 0
-						return true
-					}
-			}
-		} else {
-			switch (op) {
-				case 'add':
-					if (num === 0) {
-						return null
-					}
-					return (variables) => {
-						variables[aIndex] += num
-						return true
-					}
-				case 'mul':
-					if (num === 1) {
-						return null
-					} else if (num === 0) {
-						return (variables) => {
-							variables[aIndex] = 0
-							return true
-						}
-					}
-					return (variables) => {
-						variables[aIndex] *= num
-						return true
-					}
-				case 'div':
-					if (num === 1) {
-						return null
-					}
-					return (variables) => {
-						variables[aIndex] = Math.floor(variables[aIndex] / num)
-						return true
-					}
-				case 'mod':
-					return (variables) => {
-						const a = variables[aIndex]
+						${a} = a % b
+					`
+				: `
+						const a = ${a}
 						if (a < 0) {
 							return false
 						}
-						variables[aIndex] = a % num
-						return true
-					}
-				case 'eql':
-					return (variables) => {
-						variables[aIndex] = variables[aIndex] === num
-							? 1
-							: 0
-						return true
-					}
-			}
-		}
+						${a} = a % ${b}
+					`
+		case 'eql':
+			return `${a} = ${a} === ${b} ? 1 : 0`
 	}
+}
 
-	const groups = []
+const prepareFunction = (operations) => {
+	const lines = operations.map(prepareOperation)
+	lines.push('return true')
+	return new Function('variables', lines.join('\n'))
+}
+
+export default (input) => {
+	const operations = filter(input.split('\n').map((str) => {
+		const [op, a, b] = str.split(' ')
+		const num = parseInt(b)
+		const isReference = op !== 'inp' && Number.isNaN(num)
+		return [op, indices[a], isReference ? indices[b] : num, isReference]
+	}))
+
+	const groupOperations = []
 	let currentOps = null
 
-	input.split('\n').forEach((str) => {
-		const [op, a, b] = str.split(' ')
-		const aIndex = indices[a]
-		if (op === 'inp') {
-			const operations = currentOps = []
-			groups.push((variables, value) => {
-				variables[aIndex] = value
-				return operations.every((operation) => {
-					return operation(variables)
-				})
-			})
+	operations.forEach((operation) => {
+		if (operation[0] === 'inp') {
+			groupOperations.push(currentOps = [])
 		} else {
-			const operation = parseOperation(op, aIndex, b)
-			if (operation != null) {
-				currentOps.push(operation)
-			}
+			currentOps.push(operation)
 		}
 	})
 
+	const groups = groupOperations.map(prepareFunction)
+	const groupCache = new Array(groups.length).fill(0).map(() => new Set())
+	const groupVariables = new Array(groups.length).fill(0).map(() => new Int32Array(4))
 	const last = groups.length - 1
+	let i = 0
+	groupVariables[i][0] = 9
 
-	const cache = new Map()
-
-	ge
-
-	const test = (i, variables) => {
-		const execute = groups[i]
-		const slice = variables.slice()
-		for (let value = 9; value > 0; value--) {
-			if (execute(slice, value)) {
+	while (true) {
+		const variables = groupVariables[i]
+		const z = variables[3]
+		if (variables[0] === 1) {
+			groupCache[i].add(z)
+			i--
+		} else {
+			if (groups[i](variables)) {
+				const resultZ = variables[3]
 				if (i === last) {
-					if (slice[3] === 0) {
-						return value
+					if (resultZ === 0) {
+						break
 					}
-				} else {
-					const result = test(i + 1, slice)
-					if (result !== 0) {
-						return result + value * (10 ** (last - i))
-					}
+				} else if (!groupCache[i + 1].has(resultZ)) {
+					++i
+					groupVariables[i][0] = 9
+					groupVariables[i][3] = resultZ
 				}
 			}
-			slice.set(variables)
+			variables[0]--
+			variables[3] = z
 		}
-		return 0
 	}
 
-	const result1 = test(5, new Int32Array(4))
+	const result1 = groupVariables.reduce((result, [w]) => (result + 1) * 10 + w, -1)
 
-	return [result1]
+	i = 0
+	groupVariables[i][0] = 1
+
+	while (true) {
+		const variables = groupVariables[i]
+		const z = variables[3]
+		if (variables[0] === 9) {
+			groupCache[i].add(z)
+			i--
+		} else {
+			if (groups[i](variables)) {
+				const resultZ = variables[3]
+				if (i === last) {
+					if (resultZ === 0) {
+						break
+					}
+				} else if (!groupCache[i + 1].has(resultZ)) {
+					++i
+					groupVariables[i][0] = 1
+					groupVariables[i][3] = resultZ
+				}
+			}
+			variables[0]++
+			variables[3] = z
+		}
+	}
+
+	const result2 = groupVariables.reduce((result, [w]) => (result - 1) * 10 + w, 1)
+
+	return [result1, result2]
 }
