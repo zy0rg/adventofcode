@@ -30,7 +30,7 @@ const getInput = async (year, day) => {
 			}
 		}, filename)
 	}
-	return (await readFile(filename, {encoding: 'utf-8'})).trim()
+	return (await readFile(filename, {encoding: 'utf-8'})).trimEnd()
 }
 
 const ensureDir = async (path) => {
@@ -83,4 +83,4 @@ const execute = async (year) => {
 	})
 }
 
-execute(2021)
+execute(2022)
