@@ -83,4 +83,4 @@ const execute = async (year) => {
 	})
 }
 
-execute(2022)
+execute(2023)
