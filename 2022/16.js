@@ -23,153 +23,94 @@ export default (input) => {
 		return ids[id] = i++
 	}
 
+	const destinations = []
+
 	parsed.forEach(([strId, rate, tunnels]) => {
 		const id = getId(strId)
 		if (rate !== 0) {
 			rates[id] = rate
 			multipliers[id] = multiplier
 			multiplier *= 2
+			destinations.push(id)
 		}
 		paths[id] = tunnels.map(getId)
 	})
 
-	const idMultiplier = multiplier
-	const elMultiplier = multiplier * length
-	const depthMultiplier = elMultiplier * length
+	const destLength = destinations.length
 
-	const cache = new Map()
+	const distances = new Uint8Array(length * length).fill(255)
 
-	const evaluate1 = (id, openedValves, depth) => {
-		if (depth <= 1) {
-			return 0
+	const addConnection = (from, to, distance) => {
+		if (from === to) {
+			return
 		}
-
-		const key = openedValves + id * idMultiplier + depth * depthMultiplier
-
-		if (cache.has(key)) {
-			return cache.get(key)
+		const id = from < to ? to + from * length : to * length + from
+		if (distances[id] > distance) {
+			distances[id] = distance
+			paths[from].forEach((from) => {
+				addConnection(from, to, distance + 1)
+			})
+			paths[to].forEach((to) => {
+				addConnection(from, to, distance + 1)
+			})
 		}
-
-		let max = 0
-
-		const next = depth - 1
-		const multiplier = multipliers[id]
-
-		if (rates[id] !== 0 && (multiplier & openedValves) === 0) {
-			const result = next * rates[id] + evaluate1(id, openedValves + multiplier, next)
-			if (result > max) {
-				max = result
-			}
-		}
-		paths[id].forEach((id) => {
-			const result = evaluate1(id, openedValves, next)
-			if (result > max) {
-				max = result
-			}
-		})
-
-		cache.set(key, max)
-
-		return max
 	}
 
-	const cache2 = new Int16Array(depthMultiplier * 27).fill(-1)
+	paths.forEach((paths, from) => {
+		paths.forEach((to) => {
+			addConnection(from, to, 1)
+		})
+	})
 
-	const evaluate2 = (id, el, openedValves, depth) => {
-		if (depth <= 1) {
-			return 0
+	for (let to = 0; to < length; to++) {
+		distances[to * length + to] = 0
+		for (let from = to + 1; from < length; from++) {
+			distances[from * length + to] = distances[from + to * length]
 		}
+	}
 
-		if (id > el) {
-			[id, el] = [el, id]
-		}
-
-		const key = openedValves
-			+ id * idMultiplier
-			+ el * elMultiplier
-			+ depth * depthMultiplier
-
-		if (cache2[key] !== -1) {
-			return cache2[key]
-		}
-
+	const evaluate = (from, openedValves, depth) => {
 		let max = 0
-
-		const next = depth - 1
-
-		const multiplier = multipliers[id]
-		const value = rates[id] !== 0 && (multiplier & openedValves) === 0
-			? next * rates[id]
-			: 0
-		const idPaths = paths[id]
-		const idLength = idPaths.length
-
-		const multiplierEl = multipliers[el]
-		const valueEl = rates[el] !== 0 && (multiplierEl & openedValves) === 0
-			? next * rates[el]
-			: 0
-		const elPaths = paths[el]
-		const elLength = elPaths.length
-
-		if (el === id) {
-			if (value !== 0) {
-				for (let e = 0; e < elLength; e++) {
-					const result = value + evaluate2(id, elPaths[e], openedValves + multiplier, next)
+		destinations.forEach((to, i) => {
+			if (openedValves[i] === 0) {
+				const distance = distances[from * length + to]
+				const next = depth - distance - 1
+				if (next > 0) {
+					openedValves[i] = 1
+					const result = rates[to] * next + evaluate(to, openedValves, next)
+					openedValves[i] = 0
 					if (result > max) {
 						max = result
 					}
 				}
 			}
-			for (let i = 0; i < idLength; i++) {
-				for (let e = i + 1; e < idLength; e++) {
-					const result = evaluate2(idPaths[i], idPaths[e], openedValves, next)
-					if (result > max) {
-						max = result
-					}
-				}
-			}
-		} else {
-			if (value !== 0) {
-				if (valueEl !== 0) {
-					const result = value + valueEl + evaluate2(id, el, openedValves + multiplier + multiplierEl, next)
-					if (result > max) {
-						max = result
-					}
-				}
-				for (let e = 0; e < elLength; e++) {
-					const result = value + evaluate2(id, elPaths[e], openedValves + multiplier, next)
-					if (result > max) {
-						max = result
-					}
-				}
-			}
-			if (valueEl !== 0) {
-				for (let i = 0; i < idLength; i++) {
-					const result = valueEl + evaluate2(idPaths[i], el, openedValves + multiplierEl, next)
-					if (result > max) {
-						max = result
-					}
-				}
-			}
-			for (let i = 0; i < idLength; i++) {
-				for (let e = 0; e < elLength; e++) {
-					const result = evaluate2(idPaths[i], elPaths[e], openedValves, next)
-					if (result > max) {
-						max = result
-					}
-				}
-			}
-		}
-
-		cache2[key] = max
-
+		})
 		return max
 	}
 
 	const id = getId('AA')
 
-	const result1 = evaluate1(id, 0, 30)
-	const result2 = evaluate2(id, id, 0, 26)
+	const evaluate2 = (a, b, depth, limit) => {
+		let max = evaluate(id, a, depth) + evaluate(id, b, depth)
+		if (max > limit) {
+			for (let i = 0; i < destLength; i++) {
+				if (a[i] === 0) {
+					a[i] = 1
+					b[i] = 0
+					const result = evaluate2(a, b, depth, max)
+					a[i] = 0
+					b[i] = 1
+					if (result > max) {
+						max = result
+					}
+				}
+			}
+		}
+		return max
+	}
 
-	return [result1, result2]
+	return [
+		evaluate(id, new Uint8Array(destLength), 30),
+		evaluate2(new Uint8Array(destLength), new Uint8Array(destLength).fill(1), 26, 0)
+	]
 }
